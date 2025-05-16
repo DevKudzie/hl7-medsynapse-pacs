@@ -22,7 +22,7 @@ sleep 2
 echo "Web Interface started with PID: $WEB_PID"
 
 # Check if the web interface is actually running
-if ! ps -p $WEB_PID > /dev/null; then
+if ! kill -0 $WEB_PID 2>/dev/null; then
     echo "ERROR: Web Interface failed to start. Exiting..."
     kill $REST_PID
     exit 1

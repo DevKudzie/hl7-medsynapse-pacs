@@ -1,7 +1,8 @@
 /**
- * HL7 REST API Receiver
+ * HL7 REST API and MLLP Receiver
  * 
- * This is the main server file for the REST API that receives HL7 v2.3 messages.
+ * This is the main server file that starts both the REST API and MLLP server for receiving HL7 v2.3 messages.
+ * It simulates the Medsynapse PACS Broker according to its conformance statement.
  */
 require('dotenv').config();
 const express = require('express');
@@ -12,8 +13,9 @@ const winston = require('winston');
 const path = require('path');
 const fs = require('fs');
 
-// Import routes
+// Import routes and MLLP server
 const hl7Routes = require('./src/routes/hl7Routes');
+const mllpServer = require('./src/utils/mllpServer');
 
 // Create Express app
 const app = express();
@@ -74,11 +76,13 @@ app.use('/api/hl7', verifyApiKey, hl7Routes);
 // Home route
 app.get('/', (req, res) => {
   res.json({
-    message: 'HL7 REST Receiver API',
+    message: 'HL7 REST Receiver API and MLLP Server',
     endpoints: {
-      hl7: '/api/hl7'
+      restApi: '/api/hl7',
+      mllpServer: `${process.env.MLLP_HOST || 'localhost'}:${process.env.MLLP_PORT || 2575}`
     },
-    version: '1.0.0'
+    version: '1.0.0',
+    conformance: 'Medsynapse PACS v3.0.0.6'
   });
 });
 
@@ -106,9 +110,16 @@ app.use((req, res) => {
   });
 });
 
-// Start server
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  logger.info(`Server running on port ${PORT}`);
-  console.log(`HL7 REST Receiver API listening on port ${PORT}`);
+// Start REST API server
+const REST_PORT = process.env.PORT || 3000;
+app.listen(REST_PORT, () => {
+  logger.info(`REST API server running on port ${REST_PORT}`);
+  console.log(`HL7 REST Receiver API listening on port ${REST_PORT}`);
+  
+  // After REST API is running, start MLLP server
+  const MLLP_PORT = process.env.MLLP_PORT || 2575;
+  mllpServer.startMLLPServer(MLLP_PORT, () => {
+    logger.info(`MLLP server running on port ${MLLP_PORT}`);
+    console.log(`HL7 MLLP server listening on port ${MLLP_PORT}`);
+  });
 }); 

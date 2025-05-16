@@ -5,6 +5,7 @@ const fs = require('fs');
 const morgan = require('morgan');
 const cors = require('cors');
 const { spawn } = require('child_process');
+require('dotenv').config();
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -20,8 +21,15 @@ app.use(express.static(path.join(__dirname, 'public')));
 const isDocker = fs.existsSync('/.dockerenv') || fs.existsSync('/app/venv');
 const HL7_API_ENDPOINT = process.env.HL7_API_ENDPOINT || 
                         (isDocker ? 'http://localhost:3000/api/hl7' : 'http://localhost:3000/api/hl7');
+const HL7_API_KEY = process.env.HL7_API_KEY || 'your_api_key_here';
 
 console.log(`Using HL7 API endpoint: ${HL7_API_ENDPOINT}`);
+
+// API request headers with API key
+const apiHeaders = {
+  'Content-Type': 'application/json',
+  'x-api-key': HL7_API_KEY
+};
 
 // Routes
 app.get('/', (req, res) => {
@@ -111,11 +119,9 @@ app.post('/api/send', async (req, res) => {
       sendTime: new Date().toISOString()
     };
     
-    // Send to HL7 API
+    // Send to HL7 API with API key
     const response = await axios.post(HL7_API_ENDPOINT, payload, {
-      headers: {
-        'Content-Type': 'application/json'
-      }
+      headers: apiHeaders
     });
     
     res.json({
@@ -135,7 +141,9 @@ app.post('/api/send', async (req, res) => {
 // API route to get received messages
 app.get('/api/messages', async (req, res) => {
   try {
-    const response = await axios.get(`${HL7_API_ENDPOINT}/messages`);
+    const response = await axios.get(`${HL7_API_ENDPOINT}/messages`, {
+      headers: apiHeaders
+    });
     res.json(response.data);
   } catch (error) {
     console.error('Error fetching messages:', error);
@@ -150,7 +158,9 @@ app.get('/api/messages', async (req, res) => {
 app.get('/api/messages/:id', async (req, res) => {
   try {
     const messageId = req.params.id;
-    const response = await axios.get(`${HL7_API_ENDPOINT}/messages/${messageId}`);
+    const response = await axios.get(`${HL7_API_ENDPOINT}/messages/${messageId}`, {
+      headers: apiHeaders
+    });
     res.json(response.data);
   } catch (error) {
     console.error(`Error fetching message with ID ${req.params.id}:`, error);
@@ -164,7 +174,9 @@ app.get('/api/messages/:id', async (req, res) => {
 // API route to get message types
 app.get('/api/messages/types', async (req, res) => {
   try {
-    const response = await axios.get(`${HL7_API_ENDPOINT}/types`);
+    const response = await axios.get(`${HL7_API_ENDPOINT}/types`, {
+      headers: apiHeaders
+    });
     res.json(response.data);
   } catch (error) {
     console.error('Error fetching message types:', error);

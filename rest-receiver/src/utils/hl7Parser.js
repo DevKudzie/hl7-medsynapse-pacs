@@ -1,7 +1,7 @@
 /**
- * HL7 Parser Utility
+ * HL7 Parser Utility for Medsynapse PACS
  * 
- * This utility parses HL7 v2.3 messages and extracts relevant data.
+ * This utility parses HL7 v2.3 messages according to the Medsynapse PACS conformance statement.
  */
 const moment = require('moment');
 
@@ -17,8 +17,12 @@ exports.parseHL7 = (message) => {
       return null;
     }
     
-    // Split message into segments
-    const segments = message.split('\n');
+    // Split message into segments by carriage return
+    let segments = message.split('\r');
+    if (segments.length === 1) {
+      // Try splitting by newline if carriage return didn't work
+      segments = message.split('\n');
+    }
     
     // Check if we have an MSH segment
     if (!segments[0] || !segments[0].startsWith('MSH|')) {
@@ -89,13 +93,11 @@ exports.parseHL7 = (message) => {
             // Parse patient name components if available
             let lastName = '';
             let firstName = '';
-            let middleName = '';
             
             if (patientName && patientName.includes('^')) {
               const nameParts = patientName.split('^');
               lastName = nameParts[0] || '';
               firstName = nameParts[1] || '';
-              middleName = nameParts[2] || '';
             }
             
             // Add patient details to parsed message
@@ -104,59 +106,105 @@ exports.parseHL7 = (message) => {
               name: {
                 full: patientName,
                 last: lastName,
-                first: firstName,
-                middle: middleName
+                first: firstName
               },
               gender: fields[8] || '',
               dob: fields[7] || '',
-              address: fields[11] || ''
+              admissionId: fields[18] || ''
             };
           }
           break;
           
         case 'OBR':
-          // Observation Request segment
+          // Observation Request segment - follows Medsynapse field mapping
           if (fields.length > 4) {
             parsedMessage.order = {
-              id: fields[2] || '',
-              fillerId: fields[3] || '',
-              universalServiceId: fields[4] || ''
+              accessionNumber: fields[2] || '',
+              spsId: fields[4]?.split('^')?.[0] || '',
+              spsDescription: fields[4]?.split('^')?.[1] || '',
+              priority: fields[5] || '',
+              rpDescription: fields[15] || '',
+              ssName: fields[18] || '',
+              rpId: fields[19] || '',
+              spsLocation: fields[20] || '',
+              ssAeTitle: fields[21] || '',
+              modality: fields[24] || '',
+              reasonForStudy: fields[31] || '',
+              performingPhysician: fields[34] || '',
+              spsStartDateTime: fields[36] || ''
             };
           }
           break;
           
         case 'OBX':
-          // Observation/Result segment
+          // Observation/Result segment - modified for Medsynapse report format
           if (fields.length > 5) {
-            // Initialize the observation array if it doesn't exist
-            if (!parsedMessage.observations) {
-              parsedMessage.observations = [];
+            const reportFormat = fields[2] || '';
+            const studyId = fields[3]?.split('^')?.[0] || '';
+            const studyDescription = fields[3]?.split('^')?.[1] || '';
+            
+            // Unescape the report text
+            let reportText = fields[5] || '';
+            reportText = reportText.replace(/\\X0D\\\\X0A\\/g, '\n');
+            reportText = reportText.replace(/\\F\\/g, '|');
+            reportText = reportText.replace(/\\S\\/g, '^');
+            reportText = reportText.replace(/\\T\\/g, '&');
+            reportText = reportText.replace(/\\R\\/g, '~');
+            reportText = reportText.replace(/\\E\\/g, '\\');
+            
+            parsedMessage.report = {
+              studyId,
+              studyDescription,
+              format: reportFormat,
+              text: reportText,
+              status: fields[11] || '',
+              date: fields[14] || '',
+              radiologistId: fields[16]?.split('^')?.[0] || '',
+              radiologistName: fields[16]?.split('^')?.[1] || ''
+            };
+          }
+          break;
+          
+        case 'ORC':
+          // Order Control segment
+          if (fields.length > 1) {
+            parsedMessage.orderControl = fields[1] || '';
+            
+            // Add institution and requesting physician
+            if (fields.length > 12) {
+              parsedMessage.requestingPhysician = fields[12]?.split('^')?.[1] || '';
             }
             
-            // Extract observation details
-            const observation = {
-              setId: fields[1] || '',
-              valueType: fields[2] || '',
-              observationId: fields[3] || '',
-              value: fields[5] || '',
-              units: fields[6] || '',
-              referenceRange: fields[7] || '',
-              abnormalFlags: fields[8] || ''
+            if (fields.length > 17) {
+              parsedMessage.institutionName = fields[17]?.split('^')?.[1] || '';
+            }
+          }
+          break;
+          
+        case 'MRG':
+          // Merge segment for patient merges (ADT^A40)
+          if (fields.length > 1) {
+            parsedMessage.mergeInfo = {
+              oldPatientId: fields[1] || ''
             };
-            
-            parsedMessage.observations.push(observation);
           }
           break;
           
         case 'PV1':
-          // Patient Visit segment
+          // Patient Visit segment - extract only what Medsynapse uses
           if (fields.length > 8) {
             parsedMessage.visit = {
               patientClass: fields[2] || '',
-              location: fields[3] || '',
-              attendingDoctor: fields[7] || '',
-              visitNumber: fields[19] || ''
+              referringPhysician: fields[8]?.split('^')?.[1] || '',
+              patientWeight: fields[20] || ''
             };
+          }
+          break;
+          
+        case 'ZDS':
+          // Custom ZDS segment for Study Instance UID
+          if (fields.length > 1) {
+            parsedMessage.studyInstanceUid = fields[1] || '';
           }
           break;
       }
@@ -171,7 +219,7 @@ exports.parseHL7 = (message) => {
 };
 
 /**
- * Generate an acknowledgment (ACK) message for a received HL7 message
+ * Generate an acknowledgment (ACK) message for a received HL7 message according to Medsynapse specs
  * @param {Object} parsedMessage - Parsed HL7 message
  * @returns {string} ACK message
  */
@@ -187,20 +235,24 @@ exports.generateAcknowledgment = (parsedMessage) => {
       sendingFacility,
       receivingApplication,
       receivingFacility,
-      messageControlId
+      messageControlId,
+      triggerEvent
     } = parsedMessage;
     
     // Generate current date/time in HL7 format
     const currentDateTime = moment().format('YYYYMMDDHHmmss');
     
-    // Create the MSH segment (switching sender and receiver)
-    const msh = `MSH|^~\\&|${receivingApplication}|${receivingFacility}|${sendingApplication}|${sendingFacility}|${currentDateTime}||ACK|ACK${messageControlId}|P|2.3`;
+    // Determine the trigger event (from the original message type)
+    const ackTriggerEvent = triggerEvent || 'O01'; // Default to O01 if none provided
+    
+    // Create the MSH segment (switching sender and receiver) according to Medsynapse format
+    const msh = `MSH|^~\\&|${receivingApplication}|${receivingFacility}|${sendingApplication}|${sendingFacility}|${currentDateTime}||ACK^${ackTriggerEvent}|ACK${Date.now()}|P|2.3|1||||91|||`;
     
     // Create the MSA segment (Message Acknowledgment)
     // AA = Application Accept
-    const msa = `MSA|AA|${messageControlId}|Message received and processed successfully`;
+    const msa = `MSA|AA|${messageControlId}|Message received and processed successfully|||`;
     
-    // Return the complete ACK message
+    // Return the complete ACK message with carriage returns
     return `${msh}\r${msa}`;
     
   } catch (err) {

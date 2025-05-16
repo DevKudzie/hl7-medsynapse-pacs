@@ -1,0 +1,382 @@
+Medsynapse HL7 Conformance Statement
+Page 1 of 16
+HL7 Conformance Statement
+Version 3.0.0.6: Dec 12, 2019
+PBPM Version 3.0.0.6
+PACS Version 5.8.0.0
+“To become the leading medical informatics company in the world by continuously creating
+innovative products, cementing strong relationships with customers and OEMs and
+empowering our employees to excel at all levels”
+Medsynapse HL7 Conformance Statement
+Page 2 of 16
+Medsynaptic Pvt Ltd
+5th Floor, Mantri-Manikchand Galleria
+Off S. B. Road, Model Colony,
+Shivajinagar
+Pune - 411016
+India
+Tel: +91-20-25650411
+Fax: +91-20-25650412
+Website: http://www.medsynaptic.com
+Copyright © 2019 Medsynaptic. All rights reserved.
+No part of this publication may be reproduced, transmitted, transcribed, stored in a retrieval
+system, or translated into any language, in any form or by any means, electronic, mechanical,
+photocopying, recording, or otherwise, without prior written permission from Medsynaptic.
+All copyright, confidential information, patents, design rights and all other intellectual property
+rights of whatsoever nature contained herein are and shall remain the sole and exclusive
+property of Medsynaptic. The information furnished herein is believed to be accurate and
+reliable.
+However, no responsibility is assumed by Medsynaptic for its use, or for any infringements of
+patents or other rights of third parties resulting from its use.
+The Medsynaptic name and Medsynaptic logo are trademarks or registered trademarks of
+Medsynaptic.
+All other trademarks are the property of their respective owners.
+Medsynapse HL7 Conformance Statement
+Page 3 of 16
+Index
+A] General
+B] Broker at glance
+C] Communication protocol and message format
+D] Supported messages
+a. Order Update (ORM^O01)
+b. Report Update (ORU^R01)
+c. Patient Information Update (ADT^A08)
+d. Patient Merge (ADT^A40)
+E] ORU message details
+F] Acknowledgements
+G] Field mapping
+H] Notes
+Kindly note that any HL7 information detailed in this document should not be treated as a
+standalone but should be used in conjunction with the HL7 Standards.
+Medsynapse HL7 Conformance Statement
+Page 4 of 16
+A] General
+Introduction
+PACS Broker works as translator between RIS and modality. It translates HL7 data received from
+RIS to the DICOM format that modality understands. This way, passing correct data in
+respective fields is responsibility of RIS. Broker will not validate the data received (except some
+very basic validations) from RIS.
+Also, order scheduling is not a part of broker. Order scheduling should be done on RIS and
+scheduled orders should be sent to Broker.
+Workflow
+PACS Broker accepts order (patient demographic, study details and scheduling details) data
+from RIS using HL7 specifications. Modality queries the broker (periodically or manually) using
+DICOM specifications to fetch this data. On receiving the query from modality, broker provides
+matching data to modality. On receiving the data, modalities conduct the study using schedule
+information. Modality will then transfer images for conducted study to PACS using DICOM
+specifications. After diagnosis, radiologist will generate the report for the study. PACS will
+transfer the report to broker. Broker will send the report back to RIS using HL7 specifications.
+PACS Broker also accepts the report from RIS using HL7 specifications in case report is
+generated on RIS.
+Accession number (Placer Order Number) is used as unique identifier for each order. The
+accession number should be transferred without any change throughout the integration cycle.
+Medsynapse HL7 Conformance Statement
+Page 5 of 16
+B] Broker at glance
+Broker overview
+Feature Broker to RIS RIS to Broker
+Communication Protocol MLLP over TCP/IP
+Concurrent connections 1 1
+HL7 version 2.3 2.3
+Message types ORU ORM, ORU, ADT
+Bulk messages No No
+Acknowledgements Supported and Mandatory
+Integration Diagram
+Medsynapse HL7 Conformance Statement
+Page 6 of 16
+C] Communication protocol and message format
+Socket
+Message communication will happen though a TCP/IP socket connection to an agreed upon
+port and IP address.
+There is no asynchronous activity in this implementation. Only one concurrent connection is
+allowed on broker. Only one concurrent connection is established by broker.
+Bulk messages (multiple messages on single connection) are not supported. Only one message
+should be transferred on one connection.
+Connection should be immediately closed by RIS when message sending is finished and
+acknowledgement is received or timed out.
+MLLP Implementation
+Broker follows MLLP Specifications. Broker uses the standard HL7 format for messages, thus
+starting and ending characters delimit each message.
+Description HEX ASCII Symbol
+Message starting character 0B 11 <VT>
+Message ending characters 1C, 0D 28, 13 <FS>, <CR>
+HL7 Delimiter Characters
+Description HEX ASCII Symbol
+Segment separator character 0D 13 <CR>
+Fields separator character 7C 124 |
+Component separator character 5E 94 ^
+Subcomponent separator character 26 38 &
+Field repetition separator 7E 126 ~
+Escape character 5C 92 \
+The MSH segment of each message contains following identification fields: -
+ MSH(3,1) contains sending application.
+ MSH(4,1) contains sending facility.
+ MSH(5,1) contains receiving application.
+ MSH(6,1) contains receiving facility.
+ MSH(10,1) contains massage control id. This must be unique for each message including
+acknowledgements.
+HL7 Version
+Broker works on HL7 version 2.3.
+Medsynapse HL7 Conformance Statement
+Page 7 of 16
+D] Supported messages
+Following messages are supported by broker: -
+Message Event Path Mandatory
+ORM O01 RIS to Broker Yes
+ORU R01 RIS to Broker No
+Broker to RIS No
+ADT A08 RIS to Broker No
+ADT A40 RIS to Broker No
+a. Order Update (ORM^O01)
+An Order Update message is expected from RIS whenever new order is scheduled,
+existing order updated, existing order cancelled, existing order is completed. Only one
+occurrence of each segment will be permitted in a message.
+Example Message
+MSH|^~\&|HIS_APP|HIS_FACILITY|PACS_APP|PACS_FACILITY|20130614131415||ORM^O01|MsgCtrlId_
+ORM|P|2.3
+PID|1||PatientID||Patient Name||20000514|F||||||||||AdmID
+PV1|1|OP||||||^Ref Phy||||||||||||50
+ORC|NW|||||||||||^Req Phy|||||^Institution Name
+OBR|1|ACC.NO.01||SPSID^SPSDesc|ROUTINE||||||||||RPDesc|||SSName|RPID|SPSLocation|SSAETitle
+|||CT|||||||Reason For Proc|||SchPerPhyName||20130614132030
+ZDS|StudyIUID
+Order Types
+Order updating and Order cancellation is supported.
+Order type is identified from value of ORC(1,1) field as follows: -
+ If value is “NW”, it is new order message.
+ If value is “NW”, and accession number (Placer Order Number) already exists in
+broker, it is update order message.
+ If value is “CA”, it is cancel order message. Order will be deleted from broker
+database.
+ If value is “CM”, it is complete order message. This order will not be sent to
+modality.
+Medsynapse HL7 Conformance Statement
+Page 8 of 16
+b. Report Update (ORU^R01)
+A Report Update message is queued when a diagnostic report is added or modified. In
+case report is created on RIS, only one occurrence of OBX segment will be permitted in a
+message. This is because; PACS support only one report per study.
+Example Message
+MSH|^~\&|PACS_APP|PACS_FACILITY|HIS_APP|HIS_FACILITY|20130614111345||ORU^R01|MsgCtrlId_O
+RU|P|2.3|1|||||||
+PID|1||PatientID||Patient Name||20000514|F||||||||||AdmID||||||||||||
+PV1|1|OP||||||^Ref Phy||||||||||||50||||||||||||||||||||||||||||||||
+ORC|NW|||||||||||^Req Phy|||||^Institution Name|||||||
+OBR|1|ACC.NO.01||SPSID^SPSDesc|ROUTINE||||||||||RPDesc|||SSName|RPID|SPSLocation|SSAETitle
+|||CT|||||||Reason For Proc|||SchPerPhyName||20130614132030|||||||||
+OBX||TX|StudyID^StudyDescription||This is sample report for accession number
+ACC.NO.01.\X0D\\X0A\This is sample report only.\X0D\\X0A\||||||F|||20130614111317||Read Phy
+ID^Read Phy|
+Report Types
+Report cancellation is not supported.
+Report updating is supported as follows: -
+ If report for received accession number (Placer Order Number) already exists in
+broker, it is update report message.
+ Otherwise, it is new report message.
+Medsynapse HL7 Conformance Statement
+Page 9 of 16
+c. Admit Discharge Transfer - Patient Information Update (ADT^A08)
+A Patient Information Update message is expected from RIS whenever patient
+demographic information is updated in RIS.
+Example Message
+MSH|^~\&|HIS_APP|HIS_FACILITY|PACS_APP|PACS_FACILITY|20130614131415||ADT^A08|MsgCtrlId_A
+DT|P|2.3
+EVN|A08|20130614131415
+PID|1||PatientID||Patient Name|||F||||||||||AdmID
+Following fields are allowed for update: -
+- Patient Name
+- Patient Sex
+- Admission ID
+This message will update all the orders for given patient id with new information.
+Medsynapse HL7 Conformance Statement
+Page 10 of 16
+d. Admit Discharge Transfer - Patient Merge (ADT^A40)
+A Patient Merge message is expected from RIS whenever two patient ids are merged on
+RIS.
+Example Message
+MSH|^~\&|HIS_APP|HIS_FACILITY|PACS_APP|PACS_FACILITY|20130614131415||ADT^A40|MsgCtrlId_A
+DT|P|2.3
+EVN|A40|20130614131415
+PID|1||PatientID_New
+MRG|PatientID_Old
+This message will update all the orders for old patient id with new one.
+Medsynapse HL7 Conformance Statement
+Page 11 of 16
+E] ORU message details
+Encoding characters in report data in ORU message
+While reading/writing report data from/to ORU message, encoding characters are mapped with
+their respective escape sequences as per HL7 specifications.
+Encoding character Mapped with
+Segment separator character \X0D\
+Fields separator character \F\
+Component separator character \S\
+Subcomponent separator character \T\
+Field repetition separator \R\
+New line character (Symbol <LF>; ASCII = 10) \X0A\
+Following is an example of report content with encoding characters: -
+This is sample report for Xyz^Pqr.
+This is an example report only.
+Following is example of same report above with mapped encoding characters: -
+This is sample report for Xyz\S\Pqr.\X0D\This is an example report only.
+Observe that carriage return is replaced with “\X0D\” and “^” is replaced with \S\.
+Segment Swapping
+While creating ORU message, following segments are swapped from its respective ORM
+message: -
+ PID
+ PV1
+ ORC
+ OBR
+Additional segment OBX is inserted which contains report details.
+Report Formats (Broker to RIS)
+Report data could be provided to RIS in following formats: -
+Format Size Notes
+Plain text Small Formatting and images will be lost
+RTF text Large Formatting and images will be preserved
+Report Formats (RIS to Broker)
+Report data could be received from RIS in following formats: -
+Format Size Notes
+Plain text Small Formatting and images will be lost
+Medsynapse HL7 Conformance Statement
+Page 12 of 16
+F] Acknowledgements
+Original Mode HL7 Acknowledgement is supported and mandatory. Both the 15th and 16th
+fields of the MSH segment of the out-bound messages will be empty. In case of in-bound
+messages, these fields will NOT be checked.
+Broker only sends the acknowledgement when processing is finished.
+Broker will always send acknowledgement (success or failure) to RIS with the reason for failure
+if any. Similarly, broker will always wait for acknowledgement (success or failure) from RIS.
+Acknowledgements are communicated to the random port on same connection.
+Broker does the following when it encounters a message that has been queued for broadcast:
+ It attempts to establish a socket connection to the RIS
+ It sends the message
+ It waits for an acknowledgement
+If an acknowledgement is not received within the specified time-out interval, then the above
+cycle is repeated. When positive acknowledgement (ACK) is received for a message that has just
+been sent, the broker removes the message from the outgoing queue, and proceeds to the next
+message on the queue.
+If negative acknowledgement (NAK) is received from RIS, the event is logged and broker
+removes the message from the outgoing queue, and proceeds to the next message on the
+queue.
+Following is the example ACK message Broker will send against received ORM message: -
+MSH|^~\&|PACS_APP|PACS_FACILITY|HIS_APP|HIS_FACILITY|20130614105253||ACK^O01|MsgCtrlId_ACK|P|2.
+3|1||||91|||
+MSA|AA|MsgCtrlId_ORM|Order registered.|||
+ACK types
+ACK type is identified from value of MSA(1,1) field as follows: -
+ AA – Application Accept – Message is successfully processed and accepted on Broker.
+ AR – Application Reject – Message is successfully processed on Broker but rejected. Read
+the reason and resend the message after correction.
+ AE – Application Error – Broker is failed to process the message.
+Medsynapse HL7 Conformance Statement
+Page 13 of 16
+G] Field mapping
+ORM message field mapping (RIS to Broker)
+* Indicates mandatory field.
+Broker Field HL7 Segment
+Accession Number* OBR(2,1)
+Patient ID* PID(3,1)
+Patient Name* PID(5,1)
+Patient Sex* PID(8,1)
+Modality* OBR(24,1)
+Scheduled Station AE Title* OBR(21,1)
+Scheduled Station Name* OBR(18,1)
+Scheduled Procedure Step Start Date Time* OBR(36,1)
+Scheduled Procedure Step ID* OBR(4,1)
+Scheduled Procedure Step Description* OBR(4,2)
+Requested Procedure ID* OBR(19,1)
+Requested Procedure Description* OBR(15,1)
+Admission ID PID(18,1)
+Patient Weight PV1(20,1)
+Patient Birth Date PID(7,1)
+Ref Physician Name PV1(8,2)
+Requesting Physician ORC(12,2)
+Scheduled Performing Physician Name OBR(34,1)
+Scheduled Procedure Step Location OBR(20,1)
+Reason For Requested Procedure OBR(31,2)
+Requested Procedure Priority OBR(5,1)
+Institution Name ORC(17,2)
+Study Instance UID ZDS(1,1)
+Medsynapse HL7 Conformance Statement
+Page 14 of 16
+ORU message field mapping (RIS to Broker)
+* Indicates mandatory field.
+Field mapping for swapped segments should be same as that of ORM message. In
+addition, OBX segment should be added for transferring report details.
+Broker Field HL7 Segment
+Report Text/Data* OBX(5,1)
+Report Date* OBX(14,1)
+Report Format OBX(2,1)
+Radiologist/Reading Physician ID OBX(16,1)
+Radiologist/Reading Physician OBX(16,2)
+ORU message field mapping (Broker to RIS)
+Field mapping for swapped segments is same as that of ORM message. In addition, OBX
+segment is added for transferring report details.
+Broker Field HL7 Segment
+Report Text/Data OBX(5,1)
+Report Date OBX(14,1)
+Report Format OBX(2,1)
+Radiologist/Reading Physician ID OBX(16,1)
+Radiologist/Reading Physician OBX(16,2)
+Study ID OBX(3,1)
+Study Description OBX(3,2)
+Report/Study Status OBX(11,1)
+Report/Study status meaning: -
+Status Meaning
+I STUDY COMPLETED
+R REPORT READ
+F REPORT FINAL
+P REPORT PRINT
+Report Text/Data will only available for status value F. For other status values, Report
+Text/Data will NOT be available. ORU message with status value other than F should be
+treated as notification only.
+ORU message with status value F will be sent twice; once without report contents and
+again with report contents. ORU message with status value F without report contents
+should be treated as notification (REPORT FINAL) only.
+ORU message with status value F and with report contents is actual Result Update
+message.
+Medsynapse HL7 Conformance Statement
+Page 15 of 16
+ADT [Patient Information Update] message field mapping (RIS to Broker)
+* Indicates mandatory field.
+Broker Field HL7 Segment
+Patient ID* PID(3,1)
+Patient Name* PID(5,1)
+Patient Sex PID(8,1)
+Admission ID PID(18,1)
+ADT [Patient Merge] message field mapping (RIS to Broker)
+* Indicates mandatory field.
+Broker Field HL7 Segment
+Patient ID New* PID(3,1)
+Patient Name Old* MRG(1,1)
+Medsynapse HL7 Conformance Statement
+Page 16 of 16
+H] Notes
+Order Scheduling
+Scheduling means collection of fields which define location (where the order should be
+executed) and date-time (when the order should be executed) of the order.
+Scheduling includes following fields: -
+- Modality
+- Scheduled Station AE Title
+- Scheduled Station Name
+- Scheduled Procedure Step Start Date Time
+- Scheduled Procedure Step Location
+Modality codes
+CR Computed Radiography
+CT Computed Tomography
+DX Digital Radiography
+ES Endoscopy
+GM General Microscopy
+IO Intra-oral Radiography
+MG Mammography
+MR Magnetic Resonance
+NM Nuclear Medicine
+PX Panoramic X-Ray
+RF Radio Fluoroscopy
+OT Other
+PT Positron emission tomography
+SC Secondary Capture Image
+SM Slide Microscopy
+US Ultrasound
+XA X-Ray Angiography
+XC External-camera Photography
+ECG Electrocardiography

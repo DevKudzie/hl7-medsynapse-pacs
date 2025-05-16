@@ -8,10 +8,12 @@ services:
     ports:
       - "3000:3000"  # REST API
       - "5000:5000"  # Web Interface
+      - "2575:2575"  # MLLP Server
     volumes:
       - ./logs:/app/rest-receiver/logs
       - ./storage:/app/rest-receiver/storage
     environment:
       - NODE_ENV=development
       - HL7_API_ENDPOINT=http://localhost:3000/api/hl7
+      - MLLP_PORT=2575
     restart: unless-stopped 

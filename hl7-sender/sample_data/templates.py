@@ -1,87 +1,91 @@
 """
-Templates for generating HL7 v2.3 messages with dummy data.
+Templates for generating HL7 v2.3 messages according to Medsynapse PACS conformance statement.
 """
 
-# ADT (Admission, Discharge, Transfer) Message Template
-ADT_A01_TEMPLATE = """MSH|^~\\&|{sending_app}|{sending_facility}|{receiving_app}|{receiving_facility}|{datetime}||ADT^A01|{message_id}|P|2.3
-EVN|A01|{datetime}
-PID|1||{patient_id}^^^MRN||{patient_name}||{dob}|{gender}|||{address}||{phone}|||{marital_status}||{mrn}|{ssn}
-PV1|1|{patient_class}|{location}||||{attending_id}^{attending_name}|{referring_id}^{referring_name}|||||||||{visit_number}|||||||||||||||||||||||||{admit_date}
-"""
-
-# ORU (Observation Result) Message Template
-ORU_R01_TEMPLATE = """MSH|^~\\&|{sending_app}|{sending_facility}|{receiving_app}|{receiving_facility}|{datetime}||ORU^R01|{message_id}|P|2.3
-PID|1||{patient_id}^^^MRN||{patient_name}||{dob}|{gender}|||{address}||{phone}|||{marital_status}||{mrn}|{ssn}
-PV1|1|{patient_class}|{location}||||{attending_id}^{attending_name}|{referring_id}^{referring_name}|||||||||{visit_number}
-ORC|RE|{order_id}|{filler_id}|{group_id}|{order_status}||||{order_date}
-OBR|1|{order_id}|{filler_id}|{universal_service_id}|||{observation_date}|{specimen_collection_date}||||||{specimen_received_date}|{specimen_source}||{ordering_provider}||||||{result_status}|||{reason}|
-OBX|1|{value_type}|{observation_id}^{observation_text}|{sub_id}|{observation_value}|{units}|{reference_range}|{abnormal_flags}|{probability}|{nature_of_abnormality}|{result_status}|{date_last_normal}|{user_defined}|{observation_date}
-"""
-
-# ORM (Order Message) Template
+# ORM (Order Message) Template for Order Update - used for new orders, updates, cancellations
 ORM_O01_TEMPLATE = """MSH|^~\\&|{sending_app}|{sending_facility}|{receiving_app}|{receiving_facility}|{datetime}||ORM^O01|{message_id}|P|2.3
-PID|1||{patient_id}^^^MRN||{patient_name}||{dob}|{gender}|||{address}||{phone}|||{marital_status}||{mrn}|{ssn}
-PV1|1|{patient_class}|{location}||||{attending_id}^{attending_name}|{referring_id}^{referring_name}|||||||||{visit_number}
-ORC|NW|{order_id}|{filler_id}|{group_id}|{order_status}||||{order_date}|||{ordering_provider}
-OBR|1|{order_id}|{filler_id}|{universal_service_id}|||{order_date}|||||{clinical_info}|||{ordering_provider}|||||||||||{observation_date}|||{reason}|
+PID|1||{patient_id}||{patient_name}||{dob}|{gender}||||||||||{admission_id}
+PV1|1|{patient_class}||||||^{referring_physician}||||||||||||{patient_weight}
+ORC|{order_control}|||||||||||^{requesting_physician}|||||^{institution_name}
+OBR|1|{accession_number}||{sps_id}^{sps_description}|{priority}||||||||||{rp_description}|||{ss_name}|{rp_id}|{sps_location}|{ss_aetitle}|||{modality}|||||||{reason_for_study}|||{performing_physician}||{sps_start_datetime}
+ZDS|{study_instance_uid}
+"""
+
+# ORU (Observation Result) Template for Report Update
+ORU_R01_TEMPLATE = """MSH|^~\\&|{sending_app}|{sending_facility}|{receiving_app}|{receiving_facility}|{datetime}||ORU^R01|{message_id}|P|2.3|1|||||||
+PID|1||{patient_id}||{patient_name}||{dob}|{gender}||||||||||{admission_id}||||||||||||
+PV1|1|{patient_class}||||||^{referring_physician}||||||||||||{patient_weight}||||||||||||||||||||||||||||||||
+ORC|{order_control}|||||||||||^{requesting_physician}|||||^{institution_name}|||||||
+OBR|1|{accession_number}||{sps_id}^{sps_description}|{priority}||||||||||{rp_description}|||{ss_name}|{rp_id}|{sps_location}|{ss_aetitle}|||{modality}|||||||{reason_for_study}|||{performing_physician}||{sps_start_datetime}|||||||||
+OBX||{report_format}|{study_id}^{study_description}||{report_text}||||||{report_status}|||{report_date}||{radiologist_id}^{radiologist_name}|
+"""
+
+# ADT (Patient Information Update) Message Template
+ADT_A08_TEMPLATE = """MSH|^~\\&|{sending_app}|{sending_facility}|{receiving_app}|{receiving_facility}|{datetime}||ADT^A08|{message_id}|P|2.3
+EVN|A08|{datetime}
+PID|1||{patient_id}||{patient_name}|||{gender}||||||||||{admission_id}
+"""
+
+# ADT (Patient Merge) Message Template
+ADT_A40_TEMPLATE = """MSH|^~\\&|{sending_app}|{sending_facility}|{receiving_app}|{receiving_facility}|{datetime}||ADT^A40|{message_id}|P|2.3
+EVN|A40|{datetime}
+PID|1||{patient_id_new}
+MRG|{patient_id_old}
 """
 
 # Acknowledgment Message Template
-ACK_TEMPLATE = """MSH|^~\\&|{sending_app}|{sending_facility}|{receiving_app}|{receiving_facility}|{datetime}||ACK|{message_id}|P|2.3
-MSA|{ack_code}|{message_control_id}|{text_message}
+ACK_TEMPLATE = """MSH|^~\\&|{receiving_app}|{receiving_facility}|{sending_app}|{sending_facility}|{datetime}||ACK^{trigger_event}|{message_id}|P|2.3|1||||91|||
+MSA|{ack_code}|{message_control_id}|{text_message}|||
 """
 
 # Common field values for testing
 SENDING_APPLICATIONS = [
-    "EPIC", "CERNER", "MEDITECH", "ALLSCRIPTS", "NEXTGEN"
+    "HIS_APP", "RIS_SYS", "EMR_APP", "CLINIC_SYS", "LAB_SYS"
 ]
 
 SENDING_FACILITIES = [
-    "GENERAL HOSPITAL", "MEDICAL CENTER", "COMMUNITY CLINIC", "PRIMARY CARE", "SPECIALTY CENTER"
+    "HIS_FACILITY", "RADIOLOGY_DEPT", "MAIN_HOSPITAL", "IMAGING_CENTER", "MEDICAL_CENTER"
 ]
 
 RECEIVING_APPLICATIONS = [
-    "LAB_SYS", "RADIOLOGY_SYS", "PHARMACY_SYS", "BILLING_SYS", "EMR_SYS"
+    "PACS_APP", "BROKER_APP", "ARCHIVE_SYS", "WORKLIST_SYS", "VNA_SYS"
 ]
 
 RECEIVING_FACILITIES = [
-    "LAB CORP", "RADIOLOGY CENTER", "CENTRAL PHARMACY", "BILLING DEPT", "RECORDS DEPT"
+    "PACS_FACILITY", "IMAGING_ARCHIVE", "RADIOLOGY_PACS", "ENTERPRISE_ARCHIVE", "CLOUD_STORAGE"
 ]
 
 PATIENT_CLASSES = [
     "I", "O", "E", "P", "R"  # Inpatient, Outpatient, Emergency, Preadmit, Recurring
 ]
 
-LOCATIONS = [
-    "WEST^2021^01", "EAST^3011^02", "ICU^1001^01", "ER^1500^01", "OR^2500^02"
+ORDER_CONTROLS = [
+    "NW", "CA", "CM", "XO"  # New Order, Cancel, Complete, Change Order
 ]
 
 GENDER_CODES = [
-    "M", "F", "O", "U", "A"  # Male, Female, Other, Unknown, Ambiguous
+    "M", "F", "O", "U"  # Male, Female, Other, Unknown
 ]
 
-MARITAL_STATUS_CODES = [
-    "S", "M", "D", "W", "A", "U"  # Single, Married, Divorced, Widowed, Annulled, Unknown
+MODALITY_CODES = [
+    "CR", "CT", "DX", "ES", "GM", "IO", "MG", "MR", "NM", "PX",
+    "RF", "OT", "PT", "SC", "SM", "US", "XA", "XC", "ECG"
 ]
 
-ORDER_STATUSES = [
-    "IP", "CM", "CA", "DC", "RP"  # In Process, Completed, Cancelled, Discontinued, Replaced
+REPORT_FORMATS = [
+    "TX", "RTF"  # Plain Text, Rich Text Format
 ]
 
-VALUE_TYPES = [
-    "NM", "ST", "TX", "FT", "CE"  # Numeric, String, Text, Formatted Text, Coded Entry
+REPORT_STATUSES = [
+    "I", "R", "F", "P"  # STUDY COMPLETED, REPORT READ, REPORT FINAL, REPORT PRINT
 ]
 
-RESULT_STATUSES = [
-    "F", "P", "C", "X", "I"  # Final, Preliminary, Correction, Cancelled, Pending
-]
-
-ABNORMAL_FLAGS = [
-    "L", "H", "LL", "HH", "N", "<", ">"  # Low, High, Critical Low, Critical High, Normal, Below, Above
+PRIORITIES = [
+    "ROUTINE", "STAT", "ASAP", "STANDBY"
 ]
 
 ACK_CODES = [
-    "AA", "AE", "AR", "CR", "CE"  # Application Accept, Application Error, Application Reject, Commit Reject, Commit Error
+    "AA", "AR", "AE"  # Application Accept, Application Reject, Application Error
 ]
 
 # Sample Universal Service IDs (Test Codes)

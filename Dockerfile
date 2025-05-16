@@ -24,12 +24,13 @@ RUN cd /app/hl7-sender && \
 # Copy the rest of the application code
 COPY . /app/
 
-# Create .env files from examples
+# Create .env files from examples with consistent API key
 RUN cd /app/hl7-sender && cp env.example .env
-RUN cd /app/rest-receiver && cp env.example .env
+RUN cd /app/rest-receiver && cp env.example .env && sed -i 's/your_api_key_here/hl7_8a4c9f7e2d6b5_3rx9_integration_gx72p/' /app/rest-receiver/.env
+RUN cd /app/web-interface && cp env.example .env && sed -i 's/your_api_key_here/hl7_8a4c9f7e2d6b5_3rx9_integration_gx72p/' /app/web-interface/.env
 
 # Expose ports
-EXPOSE 3000 5000
+EXPOSE 3000 5000 2575
 
 # Add entrypoint script
 COPY start.sh /app/
