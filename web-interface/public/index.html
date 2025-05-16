@@ -1,0 +1,609 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HL7 Integration Tester</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            padding-top: 20px;
+            padding-bottom: 40px;
+        }
+        .message-box {
+            font-family: monospace;
+            white-space: pre-wrap;
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            padding: 10px;
+            margin-bottom: 10px;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .nav-tabs {
+            margin-bottom: 15px;
+        }
+        .message-container {
+            display: none;
+        }
+        .message-container.active {
+            display: block;
+        }
+        .response-area {
+            font-family: monospace;
+            background-color: #f8f9fa;
+            padding: 10px;
+            border-radius: 4px;
+            margin-top: 10px;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        #loading {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="row mb-4">
+            <div class="col">
+                <h1>HL7 v2.3 Integration Tester</h1>
+                <p class="lead">Generate, send, and monitor HL7 v2.3 messages</p>
+            </div>
+        </div>
+
+        <div class="row mb-4">
+            <div class="col">
+                <ul class="nav nav-tabs" id="myTab" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active" id="generate-tab" data-bs-toggle="tab" data-bs-target="#generate" type="button" role="tab" aria-controls="generate" aria-selected="true">Generate Messages</button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="send-tab" data-bs-toggle="tab" data-bs-target="#send" type="button" role="tab" aria-controls="send" aria-selected="false">Send Message</button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="view-tab" data-bs-toggle="tab" data-bs-target="#view" type="button" role="tab" aria-controls="view" aria-selected="false">View Messages</button>
+                    </li>
+                </ul>
+                <div class="tab-content" id="myTabContent">
+                    <!-- Generate Messages Tab -->
+                    <div class="tab-pane fade show active" id="generate" role="tabpanel" aria-labelledby="generate-tab">
+                        <div class="card">
+                            <div class="card-body">
+                                <h5 class="card-title">Generate HL7 Messages</h5>
+                                <form id="generate-form">
+                                    <div class="row mb-3">
+                                        <div class="col-md-6">
+                                            <label for="message-count" class="form-label">Number of Messages</label>
+                                            <input type="number" class="form-control" id="message-count" value="5" min="1" max="20">
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label for="message-type" class="form-label">Message Type</label>
+                                            <select class="form-select" id="message-type">
+                                                <option value="ALL">All Types</option>
+                                                <option value="ADT">ADT - Admission, Discharge, Transfer</option>
+                                                <option value="ORU">ORU - Observation Result</option>
+                                                <option value="ORM">ORM - Order Message</option>
+                                                <option value="ACK">ACK - Acknowledgment</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <div class="d-grid gap-2">
+                                        <button type="submit" class="btn btn-primary">Generate Messages</button>
+                                    </div>
+                                </form>
+
+                                <div id="loading" class="text-center mt-3">
+                                    <div class="spinner-border text-primary" role="status">
+                                        <span class="visually-hidden">Loading...</span>
+                                    </div>
+                                    <p>Generating messages...</p>
+                                </div>
+
+                                <div id="generated-messages" class="mt-4" style="display: none;">
+                                    <h6>Generated Messages:</h6>
+                                    <div id="message-list"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Send Message Tab -->
+                    <div class="tab-pane fade" id="send" role="tabpanel" aria-labelledby="send-tab">
+                        <div class="card">
+                            <div class="card-body">
+                                <h5 class="card-title">Send HL7 Message</h5>
+                                <form id="send-form">
+                                    <div class="mb-3">
+                                        <label for="message-text" class="form-label">HL7 Message</label>
+                                        <textarea class="form-control" id="message-text" rows="10" placeholder="Enter or paste an HL7 message here" required></textarea>
+                                    </div>
+                                    <div class="d-grid gap-2">
+                                        <button type="submit" class="btn btn-success">Send Message</button>
+                                    </div>
+                                </form>
+
+                                <div id="send-loading" class="text-center mt-3" style="display: none;">
+                                    <div class="spinner-border text-success" role="status">
+                                        <span class="visually-hidden">Loading...</span>
+                                    </div>
+                                    <p>Sending message...</p>
+                                </div>
+
+                                <div id="send-response" class="mt-4" style="display: none;">
+                                    <h6>Response:</h6>
+                                    <div class="response-area" id="response-content"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- View Messages Tab -->
+                    <div class="tab-pane fade" id="view" role="tabpanel" aria-labelledby="view-tab">
+                        <div class="card">
+                            <div class="card-body">
+                                <div class="d-flex justify-content-between align-items-center mb-3">
+                                    <h5 class="card-title mb-0">Received Messages</h5>
+                                    <button id="refresh-messages" class="btn btn-outline-secondary btn-sm">
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-arrow-clockwise" viewBox="0 0 16 16">
+                                            <path fill-rule="evenodd" d="M8 3a5 5 0 1 0 4.546 2.914.5.5 0 0 1 .908-.417A6 6 0 1 1 8 2v1z"/>
+                                            <path d="M8 4.466V.534a.25.25 0 0 1 .41-.192l2.36 1.966c.12.1.12.284 0 .384L8.41 4.658A.25.25 0 0 1 8 4.466z"/>
+                                        </svg>
+                                        Refresh
+                                    </button>
+                                </div>
+
+                                <div class="row mb-3">
+                                    <div class="col-md-6">
+                                        <div class="card bg-light">
+                                            <div class="card-body">
+                                                <h6 class="card-title">Message Types</h6>
+                                                <div id="message-types"></div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="card bg-light">
+                                            <div class="card-body">
+                                                <h6 class="card-title">Total Messages</h6>
+                                                <div id="total-count" class="fs-4 fw-bold text-primary"></div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div id="message-table-container">
+                                    <table class="table table-bordered table-hover">
+                                        <thead class="table-light">
+                                            <tr>
+                                                <th>ID</th>
+                                                <th>Type</th>
+                                                <th>Control ID</th>
+                                                <th>Received</th>
+                                                <th>Action</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="message-table-body">
+                                        </tbody>
+                                    </table>
+                                </div>
+
+                                <div id="view-loading" class="text-center mt-3" style="display: none;">
+                                    <div class="spinner-border text-primary" role="status">
+                                        <span class="visually-hidden">Loading...</span>
+                                    </div>
+                                    <p>Loading messages...</p>
+                                </div>
+
+                                <div id="no-messages" class="alert alert-info" style="display: none;">
+                                    No messages have been received yet.
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal for viewing message details -->
+    <div class="modal fade" id="message-detail-modal" tabindex="-1" aria-labelledby="messageDetailModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="messageDetailModalLabel">Message Details</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <ul class="nav nav-tabs" id="messageDetailTab" role="tablist">
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link active" id="raw-tab" data-bs-toggle="tab" data-bs-target="#raw" type="button" role="tab" aria-controls="raw" aria-selected="true">Raw Message</button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="parsed-tab" data-bs-toggle="tab" data-bs-target="#parsed" type="button" role="tab" aria-controls="parsed" aria-selected="false">Parsed Fields</button>
+                        </li>
+                    </ul>
+                    <div class="tab-content" id="messageDetailTabContent">
+                        <div class="tab-pane fade show active mt-3" id="raw" role="tabpanel" aria-labelledby="raw-tab">
+                            <pre id="message-raw" class="message-box"></pre>
+                        </div>
+                        <div class="tab-pane fade mt-3" id="parsed" role="tabpanel" aria-labelledby="parsed-tab">
+                            <div id="message-parsed"></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Generate Messages Form
+            const generateForm = document.getElementById('generate-form');
+            const messageCount = document.getElementById('message-count');
+            const messageType = document.getElementById('message-type');
+            const loading = document.getElementById('loading');
+            const generatedMessages = document.getElementById('generated-messages');
+            const messageList = document.getElementById('message-list');
+
+            generateForm.addEventListener('submit', async function(e) {
+                e.preventDefault();
+                
+                loading.style.display = 'block';
+                generatedMessages.style.display = 'none';
+                messageList.innerHTML = '';
+                
+                try {
+                    const response = await fetch('/api/generate', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            count: messageCount.value,
+                            type: messageType.value
+                        })
+                    });
+                    
+                    const data = await response.json();
+                    
+                    if (data.success) {
+                        messageList.innerHTML = '';
+                        
+                        data.messages.forEach((message, index) => {
+                            const messageBox = document.createElement('div');
+                            messageBox.className = 'message-box mb-3';
+                            messageBox.textContent = message;
+                            
+                            const messageContainer = document.createElement('div');
+                            messageContainer.className = 'message-container' + (index === 0 ? ' active' : '');
+                            messageContainer.appendChild(messageBox);
+                            
+                            const sendButton = document.createElement('button');
+                            sendButton.className = 'btn btn-sm btn-success mb-3';
+                            sendButton.textContent = 'Send this message';
+                            sendButton.onclick = function() {
+                                // Switch to send tab and populate the text area
+                                const sendTab = document.getElementById('send-tab');
+                                bootstrap.Tab.getInstance(sendTab).show();
+                                document.getElementById('message-text').value = message;
+                            };
+                            
+                            messageContainer.appendChild(sendButton);
+                            messageList.appendChild(messageContainer);
+                        });
+                        
+                        // Navigation buttons if there are multiple messages
+                        if (data.messages.length > 1) {
+                            const navigation = document.createElement('div');
+                            navigation.className = 'd-flex justify-content-between mt-3';
+                            
+                            let currentIndex = 0;
+                            
+                            const prevButton = document.createElement('button');
+                            prevButton.className = 'btn btn-outline-primary';
+                            prevButton.textContent = 'Previous Message';
+                            prevButton.disabled = true;
+                            prevButton.onclick = function() {
+                                document.querySelectorAll('.message-container').forEach(container => container.classList.remove('active'));
+                                currentIndex--;
+                                document.querySelectorAll('.message-container')[currentIndex].classList.add('active');
+                                prevButton.disabled = currentIndex === 0;
+                                nextButton.disabled = currentIndex === data.messages.length - 1;
+                                indexInfo.textContent = `Message ${currentIndex + 1} of ${data.messages.length}`;
+                            };
+                            
+                            const nextButton = document.createElement('button');
+                            nextButton.className = 'btn btn-outline-primary';
+                            nextButton.textContent = 'Next Message';
+                            nextButton.disabled = data.messages.length <= 1;
+                            nextButton.onclick = function() {
+                                document.querySelectorAll('.message-container').forEach(container => container.classList.remove('active'));
+                                currentIndex++;
+                                document.querySelectorAll('.message-container')[currentIndex].classList.add('active');
+                                prevButton.disabled = currentIndex === 0;
+                                nextButton.disabled = currentIndex === data.messages.length - 1;
+                                indexInfo.textContent = `Message ${currentIndex + 1} of ${data.messages.length}`;
+                            };
+                            
+                            const indexInfo = document.createElement('span');
+                            indexInfo.className = 'align-self-center';
+                            indexInfo.textContent = `Message 1 of ${data.messages.length}`;
+                            
+                            navigation.appendChild(prevButton);
+                            navigation.appendChild(indexInfo);
+                            navigation.appendChild(nextButton);
+                            
+                            messageList.appendChild(navigation);
+                        }
+                        
+                        generatedMessages.style.display = 'block';
+                    } else {
+                        alert('Error: ' + (data.error || 'Failed to generate messages'));
+                    }
+                } catch (error) {
+                    console.error('Error:', error);
+                    alert('An error occurred while generating messages');
+                } finally {
+                    loading.style.display = 'none';
+                }
+            });
+
+            // Send Message Form
+            const sendForm = document.getElementById('send-form');
+            const messageText = document.getElementById('message-text');
+            const sendLoading = document.getElementById('send-loading');
+            const sendResponse = document.getElementById('send-response');
+            const responseContent = document.getElementById('response-content');
+
+            sendForm.addEventListener('submit', async function(e) {
+                e.preventDefault();
+                
+                if (!messageText.value.trim()) {
+                    alert('Please enter an HL7 message');
+                    return;
+                }
+                
+                sendLoading.style.display = 'block';
+                sendResponse.style.display = 'none';
+                
+                try {
+                    const response = await fetch('/api/send', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            message: messageText.value
+                        })
+                    });
+                    
+                    const data = await response.json();
+                    responseContent.textContent = JSON.stringify(data, null, 2);
+                    sendResponse.style.display = 'block';
+                    
+                    // Auto refresh the messages list
+                    refreshMessages();
+                } catch (error) {
+                    console.error('Error:', error);
+                    responseContent.textContent = 'Error: ' + error.message;
+                    sendResponse.style.display = 'block';
+                } finally {
+                    sendLoading.style.display = 'none';
+                }
+            });
+
+            // View Messages Tab
+            const refreshMessagesBtn = document.getElementById('refresh-messages');
+            const viewLoading = document.getElementById('view-loading');
+            const noMessages = document.getElementById('no-messages');
+            const messageTableBody = document.getElementById('message-table-body');
+            const totalCount = document.getElementById('total-count');
+            const messageTypes = document.getElementById('message-types');
+
+            // Modal elements
+            const messageRaw = document.getElementById('message-raw');
+            const messageParsed = document.getElementById('message-parsed');
+
+            refreshMessagesBtn.addEventListener('click', refreshMessages);
+
+            // View Message Details
+            window.viewMessageDetails = async function(messageId) {
+                try {
+                    const response = await fetch(`/api/messages/${messageId}`);
+                    const message = await response.json();
+                    
+                    messageRaw.textContent = message.message;
+                    
+                    // Display parsed fields in a nicely formatted way
+                    let parsedHTML = '<div class="accordion" id="accordionParsed">';
+                    
+                    // Add patient info if available
+                    if (message.parsedMessage.patient) {
+                        parsedHTML += createAccordionItem('patient', 'Patient Information', formatObject(message.parsedMessage.patient));
+                    }
+                    
+                    // Add visit info if available
+                    if (message.parsedMessage.visit) {
+                        parsedHTML += createAccordionItem('visit', 'Visit Information', formatObject(message.parsedMessage.visit));
+                    }
+                    
+                    // Add order info if available
+                    if (message.parsedMessage.order) {
+                        parsedHTML += createAccordionItem('order', 'Order Information', formatObject(message.parsedMessage.order));
+                    }
+                    
+                    // Add observations if available
+                    if (message.parsedMessage.observations && message.parsedMessage.observations.length > 0) {
+                        let observationsHTML = '<table class="table table-sm"><thead><tr><th>ID</th><th>Value</th><th>Units</th><th>Range</th><th>Flags</th></tr></thead><tbody>';
+                        message.parsedMessage.observations.forEach(obs => {
+                            observationsHTML += `<tr>
+                                <td>${obs.observationId}</td>
+                                <td>${obs.value}</td>
+                                <td>${obs.units}</td>
+                                <td>${obs.referenceRange}</td>
+                                <td>${obs.abnormalFlags}</td>
+                            </tr>`;
+                        });
+                        observationsHTML += '</tbody></table>';
+                        parsedHTML += createAccordionItem('observations', 'Observations', observationsHTML);
+                    }
+                    
+                    // Add message header info
+                    parsedHTML += createAccordionItem('header', 'Message Header', `
+                        <table class="table table-sm">
+                            <tr><td>Message Type:</td><td>${message.parsedMessage.messageType}</td></tr>
+                            <tr><td>Trigger Event:</td><td>${message.parsedMessage.triggerEvent}</td></tr>
+                            <tr><td>Control ID:</td><td>${message.parsedMessage.messageControlId}</td></tr>
+                            <tr><td>Sending App:</td><td>${message.parsedMessage.sendingApplication}</td></tr>
+                            <tr><td>Sending Facility:</td><td>${message.parsedMessage.sendingFacility}</td></tr>
+                            <tr><td>Receiving App:</td><td>${message.parsedMessage.receivingApplication}</td></tr>
+                            <tr><td>Receiving Facility:</td><td>${message.parsedMessage.receivingFacility}</td></tr>
+                            <tr><td>Message Date/Time:</td><td>${message.parsedMessage.messageDateTime}</td></tr>
+                        </table>
+                    `);
+                    
+                    // Add all segments
+                    if (message.parsedMessage.segments) {
+                        let segmentsHTML = '';
+                        for (const [segmentId, fields] of Object.entries(message.parsedMessage.segments)) {
+                            segmentsHTML += `<h6>${segmentId}</h6>`;
+                            segmentsHTML += '<table class="table table-sm"><thead><tr><th>Index</th><th>Value</th></tr></thead><tbody>';
+                            fields.forEach((field, index) => {
+                                segmentsHTML += `<tr><td>${index}</td><td>${field}</td></tr>`;
+                            });
+                            segmentsHTML += '</tbody></table>';
+                        }
+                        parsedHTML += createAccordionItem('segments', 'All Segments', segmentsHTML);
+                    }
+                    
+                    parsedHTML += '</div>';
+                    messageParsed.innerHTML = parsedHTML;
+                    
+                    // Show the modal
+                    const modal = new bootstrap.Modal(document.getElementById('message-detail-modal'));
+                    modal.show();
+                } catch (error) {
+                    console.error('Error fetching message details:', error);
+                    alert('Error fetching message details');
+                }
+            };
+
+            function createAccordionItem(id, title, content) {
+                return `
+                    <div class="accordion-item">
+                        <h2 class="accordion-header" id="heading-${id}">
+                            <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-${id}" aria-expanded="true" aria-controls="collapse-${id}">
+                                ${title}
+                            </button>
+                        </h2>
+                        <div id="collapse-${id}" class="accordion-collapse collapse show" aria-labelledby="heading-${id}">
+                            <div class="accordion-body">
+                                ${content}
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+
+            function formatObject(obj) {
+                let html = '<table class="table table-sm">';
+                for (const [key, value] of Object.entries(obj)) {
+                    html += '<tr>';
+                    html += `<td><strong>${key}</strong></td>`;
+                    if (typeof value === 'object' && value !== null) {
+                        html += `<td>${formatObject(value)}</td>`;
+                    } else {
+                        html += `<td>${value}</td>`;
+                    }
+                    html += '</tr>';
+                }
+                html += '</table>';
+                return html;
+            }
+
+            async function refreshMessages() {
+                viewLoading.style.display = 'block';
+                noMessages.style.display = 'none';
+                messageTableBody.innerHTML = '';
+                
+                try {
+                    // Fetch messages
+                    const messagesResponse = await fetch('/api/messages');
+                    const messagesData = await messagesResponse.json();
+                    
+                    // Fetch message types
+                    const typesResponse = await fetch('/api/messages/types');
+                    const typesData = await typesResponse.json();
+                    
+                    // Update total count
+                    totalCount.textContent = messagesData.totalCount || 0;
+                    
+                    // Update message types
+                    messageTypes.innerHTML = '';
+                    if (Object.keys(typesData).length === 0) {
+                        messageTypes.innerHTML = '<div class="text-muted">No messages yet</div>';
+                    } else {
+                        const typesList = document.createElement('ul');
+                        typesList.className = 'list-group';
+                        
+                        for (const [type, count] of Object.entries(typesData)) {
+                            const item = document.createElement('li');
+                            item.className = 'list-group-item d-flex justify-content-between align-items-center';
+                            item.textContent = type;
+                            
+                            const badge = document.createElement('span');
+                            badge.className = 'badge bg-primary rounded-pill';
+                            badge.textContent = count;
+                            
+                            item.appendChild(badge);
+                            typesList.appendChild(item);
+                        }
+                        
+                        messageTypes.appendChild(typesList);
+                    }
+                    
+                    // Update message table
+                    if (!messagesData.messages || messagesData.messages.length === 0) {
+                        noMessages.style.display = 'block';
+                    } else {
+                        messagesData.messages.forEach(message => {
+                            const row = document.createElement('tr');
+                            
+                            // Format received time
+                            const receivedTime = new Date(message.receivedTime);
+                            const formattedTime = receivedTime.toLocaleString();
+                            
+                            row.innerHTML = `
+                                <td>${message.id}</td>
+                                <td><span class="badge bg-primary">${message.messageType}</span></td>
+                                <td>${message.messageControlId}</td>
+                                <td>${formattedTime}</td>
+                                <td>
+                                    <button class="btn btn-sm btn-info" onclick="viewMessageDetails(${message.id})">View</button>
+                                </td>
+                            `;
+                            
+                            messageTableBody.appendChild(row);
+                        });
+                    }
+                } catch (error) {
+                    console.error('Error fetching messages:', error);
+                    noMessages.textContent = 'Error loading messages: ' + error.message;
+                    noMessages.style.display = 'block';
+                } finally {
+                    viewLoading.style.display = 'none';
+                }
+            }
+
+            // Initial load of messages
+            refreshMessages();
+        });
+    </script>
+</body>
+</html> 

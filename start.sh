@@ -1,4 +1,5 @@
 #!/bin/sh
+set -e
 
 # Start the REST receiver in the background
 cd /app/rest-receiver
@@ -20,10 +21,17 @@ WEB_PID=$!
 sleep 2
 echo "Web Interface started with PID: $WEB_PID"
 
+# Check if the web interface is actually running
+if ! ps -p $WEB_PID > /dev/null; then
+    echo "ERROR: Web Interface failed to start. Exiting..."
+    kill $REST_PID
+    exit 1
+fi
+
 # Generate initial sample HL7 messages
 cd /app/hl7-sender
 echo "Generating sample HL7 messages..."
-python3 generate_hl7.py --count 5 --output sample_messages.txt
+/app/venv/bin/python generate_hl7.py --count 5 --output sample_messages.txt
 
 echo "HL7 Integration system ready!"
 echo "REST Receiver: http://localhost:3000"

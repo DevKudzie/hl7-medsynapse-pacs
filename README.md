@@ -9,7 +9,8 @@ This project includes:
 1. **HL7 Generator** - Creates simulated HL7 v2.3 messages with dummy patient data
 2. **HL7 Sender** - Transmits HL7 messages from a local network to the internet
 3. **REST Receiver** - A REST API that receives and processes HL7 messages
-4. **Documentation** - Complete guide on HL7 v2.3 standard and implementation
+4. **Web Interface** - A simple web UI for testing the integration
+5. **Documentation** - Complete guide on HL7 v2.3 standard and implementation
 
 ## HL7 v2.3 Standard Overview
 
@@ -25,7 +26,21 @@ HL7 (Health Level Seven) v2.3 is a messaging standard for exchanging clinical an
   - OBR: Observation Request - Contains information about orders
   - OBX: Observation Result - Contains results of observations/tests
 
-## Project Setup
+## Quick Start with Docker
+
+The easiest way to run this project is using Docker:
+
+```
+docker-compose up --build
+```
+
+This will start:
+- HL7 REST receiver service on port 3000
+- Web interface on port 5000
+
+You can access the web interface at http://localhost:5000
+
+## Manual Setup
 
 ### Prerequisites
 
@@ -45,15 +60,37 @@ HL7 (Health Level Seven) v2.3 is a messaging standard for exchanging clinical an
    ```
    cd hl7-sender
    pip install -r requirements.txt
+   cp env.example .env
    ```
 
 3. Set up the REST Receiver:
    ```
    cd ../rest-receiver
    npm install
+   cp env.example .env
+   ```
+
+4. Set up the Web Interface:
+   ```
+   cd ../web-interface
+   npm install
    ```
 
 ## Usage
+
+### Running All Services
+
+To run all services at once (for Windows PowerShell):
+
+```
+Start-Process -NoNewWindow npm -ArgumentList "start", "--prefix", ".\rest-receiver"
+Start-Process -NoNewWindow npm -ArgumentList "start", "--prefix", ".\web-interface"
+```
+
+For Linux/Mac:
+```
+npm start --prefix ./rest-receiver & npm start --prefix ./web-interface
+```
 
 ### Generating HL7 Messages
 
@@ -73,16 +110,14 @@ cd hl7-sender
 python send_hl7.py --input sample_messages.txt --endpoint http://localhost:3000/api/hl7
 ```
 
-### Running the REST Receiver
+### Using the Web Interface
 
-To start the REST API receiver:
+The web interface allows you to:
+1. Generate sample HL7 messages
+2. Send messages to the REST API
+3. View received messages and their details
 
-```
-cd rest-receiver
-npm start
-```
-
-The API will be available at `http://localhost:3000/api/hl7`
+Access the web interface at: http://localhost:5000
 
 ## Security Considerations
 
@@ -93,22 +128,14 @@ When transmitting healthcare data from a local network to the internet:
 3. **Data Sanitization**: Remove any PHI/PII for testing and learning purposes
 4. **Network Security**: Consider VPN or secure tunnel for production environments
 
-## HL7 Message Examples
-
-### Sample HL7 v2.3 ADT (Admission, Discharge, Transfer) Message
-
-```
-MSH|^~\&|SENDING_APP|SENDING_FACILITY|RECEIVING_APP|RECEIVING_FACILITY|20230915120000||ADT^A01|MSG00001|P|2.3
-EVN|A01|20230915120000
-PID|1||12345^^^MRN||DOE^JOHN^Q||19800101|M|||123 MAIN ST^^ANYTOWN^NY^12345||555-123-4567|||S||MRN12345|123-45-6789
-PV1|1|I|2WEST^2021^01||||12345^SMITH^JANE^M^MD|67890^JONES^BOB^W^MD|||||||||ADM12345|||||||||||||||||||||||||20230915120000
-```
-
 ## Project Structure
 
 ```
 hl7-integration-project/
 ├── README.md
+├── Dockerfile
+├── docker-compose.yml
+├── start.sh
 ├── hl7-sender/
 │   ├── requirements.txt
 │   ├── generate_hl7.py
@@ -125,6 +152,11 @@ hl7-integration-project/
 │       │   └── hl7Controller.js
 │       └── utils/
 │           └── hl7Parser.js
+├── web-interface/
+│   ├── package.json
+│   ├── server.js
+│   └── public/
+│       └── index.html
 └── docs/
     └── hl7_standard_reference.md
 ```

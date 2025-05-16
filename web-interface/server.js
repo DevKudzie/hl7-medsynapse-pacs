@@ -16,8 +16,12 @@ app.use(express.urlencoded({ extended: true }));
 app.use(morgan('dev'));
 app.use(express.static(path.join(__dirname, 'public')));
 
-// HL7 API endpoint
-const HL7_API_ENDPOINT = process.env.HL7_API_ENDPOINT || 'http://localhost:3000/api/hl7';
+// Determine appropriate HL7 API endpoint - in Docker, localhost refers to the container itself
+const isDocker = fs.existsSync('/.dockerenv') || fs.existsSync('/app/venv');
+const HL7_API_ENDPOINT = process.env.HL7_API_ENDPOINT || 
+                        (isDocker ? 'http://localhost:3000/api/hl7' : 'http://localhost:3000/api/hl7');
+
+console.log(`Using HL7 API endpoint: ${HL7_API_ENDPOINT}`);
 
 // Routes
 app.get('/', (req, res) => {
@@ -29,8 +33,13 @@ app.post('/api/generate', (req, res) => {
   const { count, type } = req.body;
   const outputFile = path.join(__dirname, '..', 'hl7-sender', 'generated_messages.txt');
   
+  // Get Python executable path (use virtual env in Docker, regular python otherwise)
+  const pythonPath = fs.existsSync('/app/venv/bin/python') 
+    ? '/app/venv/bin/python'
+    : 'python3';
+  
   // Spawn python process to generate messages
-  const pythonProcess = spawn('python3', [
+  const pythonProcess = spawn(pythonPath, [
     path.join(__dirname, '..', 'hl7-sender', 'generate_hl7.py'),
     '--count', count || '5',
     '--type', type || 'ALL',
@@ -132,6 +141,21 @@ app.get('/api/messages', async (req, res) => {
     console.error('Error fetching messages:', error);
     res.status(500).json({
       error: 'Error fetching messages',
+      details: error.response ? error.response.data : error.message
+    });
+  }
+});
+
+// API route to get message by ID
+app.get('/api/messages/:id', async (req, res) => {
+  try {
+    const messageId = req.params.id;
+    const response = await axios.get(`${HL7_API_ENDPOINT}/messages/${messageId}`);
+    res.json(response.data);
+  } catch (error) {
+    console.error(`Error fetching message with ID ${req.params.id}:`, error);
+    res.status(500).json({
+      error: `Error fetching message with ID ${req.params.id}`,
       details: error.response ? error.response.data : error.message
     });
   }
