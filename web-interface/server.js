@@ -172,7 +172,7 @@ app.get('/api/messages/:id', async (req, res) => {
 });
 
 // API route to get message types
-app.get('/api/messages/types', async (req, res) => {
+app.get('/api/message-types', async (req, res) => {
   try {
     const response = await axios.get(`${HL7_API_ENDPOINT}/types`, {
       headers: apiHeaders
